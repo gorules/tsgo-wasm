@@ -1,6 +1,6 @@
 /target
 /.tsgo-build
-/artifacts/tsgo.wasm.zst
+*.wasm.zst
 tsgo.wasm
 *.cwasm*
 .DS_Store
