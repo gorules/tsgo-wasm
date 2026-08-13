@@ -5,6 +5,10 @@ edition = "2024"
 license = "MIT"
 description = "typescript-go (tsgo) compiled to WASI p1, with an optional wasmtime runtime"
 repository = "https://github.com/gorules/tsgo-wasm"
+homepage = "https://gorules.io"
+documentation = "https://docs.rs/tsgo-wasm"
+keywords = ["typescript", "tsgo", "wasm", "wasi", "wasmtime"]
+categories = ["development-tools", "wasm", "compilers"]
 
 [features]
 default = ["runtime"]
