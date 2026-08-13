@@ -2,7 +2,7 @@
 name = "tsgo-wasm"
 version = "0.1.0"
 edition = "2024"
-license = "Apache-2.0"
+license = "MIT"
 description = "typescript-go (tsgo) compiled to WASI p1, with an optional wasmtime runtime"
 repository = "https://github.com/gorules/tsgo-wasm"
 
