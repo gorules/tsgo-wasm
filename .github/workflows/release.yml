@@ -39,6 +39,7 @@ jobs:
         run: |
           cp artifacts/tsgo.wasm.zst tsgo.wasm.zst
           gh release upload "$GITHUB_REF_NAME" tsgo.wasm.zst --clobber
+          rm tsgo.wasm.zst
 
       - uses: dtolnay/rust-toolchain@stable
 
