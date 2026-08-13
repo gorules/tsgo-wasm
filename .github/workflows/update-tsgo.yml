@@ -31,10 +31,10 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Upload release asset
-        env:
-          GH_TOKEN: ${{ secrets.PAT }}
-        run: make upload
+      - uses: actions/cache/save@v4
+        with:
+          path: artifacts/tsgo.wasm.zst
+          key: tsgo-wasm-${{ hashFiles('artifacts/tsgo.rev') }}
 
       - name: Push to main
         run: |

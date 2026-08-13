@@ -18,10 +18,6 @@ fn main() {
 
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("tsgo.wasm.zst");
-    let rev = fs::read_to_string(root.join("artifacts/tsgo.rev"))
-        .unwrap()
-        .trim()
-        .to_string();
     let sha = fs::read_to_string(root.join("artifacts/tsgo.sha256"))
         .unwrap()
         .trim()
@@ -46,10 +42,9 @@ fn main() {
         }
     }
 
-    let rev10 = &rev[..10];
-    let url = format!(
-        "https://github.com/gorules/tsgo-wasm/releases/download/tsgo-{rev10}/tsgo-{rev10}.wasm.zst"
-    );
+    let version = env::var("CARGO_PKG_VERSION").unwrap();
+    let url =
+        format!("https://github.com/gorules/tsgo-wasm/releases/download/v{version}/tsgo.wasm.zst");
     let mut bytes = Vec::new();
     ureq::get(&url)
         .call()

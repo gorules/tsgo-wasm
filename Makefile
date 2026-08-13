@@ -15,14 +15,3 @@ tsgo:
 
 test:
 	cargo test --release
-
-upload:
-	$(eval REV10 := $(shell cut -c1-10 artifacts/tsgo.rev))
-	cp artifacts/tsgo.wasm.zst tsgo-$(REV10).wasm.zst
-	gh release create tsgo-$(REV10) --prerelease \
-		--notes "tsgo module @ microsoft/typescript-go@$$(cat artifacts/tsgo.rev). sha256: $$(cat artifacts/tsgo.sha256)" \
-		tsgo-$(REV10).wasm.zst \
-		|| gh release upload tsgo-$(REV10) tsgo-$(REV10).wasm.zst --clobber
-	rm tsgo-$(REV10).wasm.zst
-
-update: tsgo test upload

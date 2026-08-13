@@ -89,16 +89,16 @@ Measured on an M-series Mac, 5.1k-line type-check: native tsgo 0.13s (multi-thre
 
 Every published crate version is immutably fixed to one typescript-go commit: `tsgo.rev` and `tsgo.sha256` are frozen into the crates.io package at publish time, and tsgo updates always land as a new minor (`0.1.x` → `0.2.0`), which cargo treats as an incompatible range — consumers never receive a new tsgo without an explicit version bump.
 
-Updating is therefore a release act: run the **Update tsgo** workflow (workflow_dispatch) with the desired microsoft/typescript-go ref. It builds the module, runs the tests against it, uploads the `tsgo-<rev>` release asset, and pushes the updated `artifacts/tsgo.rev` + `tsgo.sha256` to main as a `feat:` commit — asset first, so validate and consumers can always download it. That push feeds release-please, which maintains the Release PR (version bump + CHANGELOG); merging that tags `v<version>` and publishes the new crate version to crates.io.
+Updating is therefore a release act: run the **Update tsgo** workflow (workflow_dispatch) with the desired microsoft/typescript-go ref. It builds the module, runs the tests against it, caches the built module keyed by rev, and pushes the updated `artifacts/tsgo.rev` + `tsgo.sha256` to main as a `feat:` commit. That push feeds release-please, which maintains the Release PR (version bump + CHANGELOG); merging that tags `v<version>` — the release workflow then attaches `tsgo.wasm.zst` to the GitHub release and publishes the crate to crates.io.
 
-The same flow works locally via `make update TSGO_REV=<ref>` (requires Go, zstd, and an authenticated `gh`) followed by committing the changed `artifacts/`.
+Locally, `make tsgo TSGO_REV=<ref>` (requires Go and zstd) produces the same artifacts for development.
 
 ## Module distribution
 
-The wasm binary is never committed to git or packaged into the crate — the repo and crates.io package carry only its rev and sha256. `build.rs` resolves the module in order:
+The wasm binary is never committed to git or packaged into the crate — the repo and crates.io package carry only its rev and sha256. Every `v<version>` GitHub release carries the `tsgo.wasm.zst` its crate version was built from. `build.rs` resolves the module in order:
 
 1. `TSGO_WASM_FILE=<path>` env override (offline / vendored / air-gapped builds)
-2. `artifacts/tsgo.wasm.zst` in the source tree, if its sha256 matches (present after `make tsgo`)
-3. Download from this repo's `tsgo-<rev>` release asset, verified against the committed sha256
+2. `artifacts/tsgo.wasm.zst` in the source tree, if its sha256 matches (present after `make tsgo`; repo CI restores it from an actions cache keyed by rev, rebuilding on a miss)
+3. Download from this repo's `v<version>` release asset, verified against the committed sha256
 
 The result lands in `OUT_DIR` and is embedded via `include_bytes!`, so the consumer API is identical in all three paths. `TSGO_REV` (from the committed `artifacts/tsgo.rev`) always records the exact upstream commit.
