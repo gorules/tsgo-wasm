@@ -16,16 +16,43 @@ use std::time::Duration;
 use tsgo_wasm::TypeScript;
 
 let ts = TypeScript::new()?;
-let output = ts.check("./project-dir", "main.ts", Some(Duration::from_secs(30)))?;
-println!("exit={} {}", output.exit_code, output.stdout);
+let diagnostics = ts.check(
+    &[("main.ts", "const n: number = 'x';\nexport default n;\n")],
+    Duration::from_secs(30),
+)?;
+assert!(diagnostics.iter().any(|d| d.code == 2322));
 ```
 
-- `TypeScript::new()` compiles the embedded module eagerly (~2s wall / ~20s CPU, parallelized). Construct it at process startup so the cost lands on boot, not on the first check; the `Module` is reused across runs at full speed. No artifacts on disk, ever.
+Everything is in-memory: sources go in as `(path, content)` pairs, diagnostics come out as structured values, and the guest sees a virtual filesystem served from a `HashMap` via tsgo's filesystem callbacks — no host filesystem is involved on any OS.
+
+- `TypeScript::new()` compiles the embedded module eagerly (~2s wall / ~20s CPU, parallelized). Construct it at process startup so the cost lands on boot, not on the first check; the `Module` is reused across runs at full speed.
 - `TypeScript::with_cache(path)` is a dev-loop convenience: it deserializes a previously cached compilation (~10ms) and falls back to compile-and-cache, so frequent process restarts (`cargo watch`) skip the boot compile. The cache is keyed to the wasmtime version/config by wasmtime itself; a mismatch silently recompiles.
-- `check(dir, entry, timeout)` mounts `dir` read-write at `/project` and runs `tsgo --noEmit /project/<entry>`.
-- `run(args, mounts, timeout)` is the raw CLI passthrough.
-- Timeouts use epoch interruption (100ms granularity), safe under concurrent runs.
-- Each run gets a fresh `Store`/instance: no state leaks between runs. Expect a ~0.9s floor per invocation (Go runtime boot + default lib loading inside the guest) — batch work into few invocations where possible.
+- `check(&[(path, content)], timeout)` runs one full project check (a `tsconfig.json` among the sources is honored; `{}` is synthesized otherwise) and returns all diagnostics. It is shorthand for a throwaway `ApiSession` — for repeated checks, hold a session instead.
+- Timeouts use epoch interruption (100ms granularity by default), safe under concurrent sessions; a timed-out session is killed, not leaked.
+
+## Persistent sessions (`ApiSession`)
+
+For repeated checks, drive tsgo's built-in API server (`tsgo --api`) as a persistent in-memory session — sources live in a `HashMap` and are served to the guest via tsgo's filesystem callbacks; nothing ever touches any filesystem, on any OS:
+
+```rust
+let mut session = ts.api_session(
+    &[
+        ("lib/user.ts", "export interface User { id: number }\n"),
+        ("main.ts", "import { User } from './lib/user';\nconst u: User = { id: 1 };\nexport default u;\n"),
+    ],
+    Duration::from_secs(60),
+)?;
+
+let diagnostics = session.diagnostics()?;
+session.update_file("main.ts", "…")?;
+let diagnostics = session.diagnostics()?;
+```
+
+- The session boots once (~130ms) and stays warm; `update_file`/`remove_file` produce incremental snapshots. Measured on an M-series Mac: a one-shot `check` costs ~920ms, while `update_file` + `diagnostics_for` inside a session costs **~1.5ms** (~600x).
+- Use `diagnostics_for(file)` (syntactic + semantic for one file) as the hot path after edits; `diagnostics()` aggregates config-parsing, syntactic, semantic, global, and program diagnostics project-wide and re-checks everything including the default libs (~0.5-0.9s).
+- A `tsconfig.json` is synthesized (`{}`) unless you provide one among the sources.
+- Each `Diagnostic` carries the file name (as you named it), a typed `Category` (`is_error()`), the tsc code, `pos`/`end` UTF-16 offsets plus a resolved 1-based line/column `Range` (computed from your in-memory sources), and recursive `message_chain` / `related_information` diagnostics.
+- The wire protocol is tsgo's synchronous MessagePack-framed API over guest stdio, chosen deliberately: WASI p1 stdin is blocking, and the sync protocol's inline request→callbacks→response cycle is exactly compatible with Go's single-threaded wasip1 scheduler.
 
 ## Custom engine config
 

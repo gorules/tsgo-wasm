@@ -10,18 +10,15 @@ fn signals_free_config_checks() {
         ..Default::default()
     };
     let ts = config.load().unwrap();
-
-    let dir = std::env::temp_dir().join(format!("tsgo-wasm-config-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("main.ts"), "const n: number = 'x';\n").unwrap();
-    let output = ts
-        .check(&dir, "main.ts", Some(Duration::from_secs(120)))
+    let diagnostics = ts
+        .check(
+            &[("main.ts", "const n: number = 'x';\n")],
+            Duration::from_secs(120),
+        )
         .unwrap();
-    assert_ne!(output.exit_code, 0);
     assert!(
-        output.stdout.contains("TS2322"),
-        "stdout: {}",
-        output.stdout
+        diagnostics.iter().any(|d| d.code == 2322),
+        "expected TS2322, got: {diagnostics:?}"
     );
 }
 
@@ -32,12 +29,12 @@ fn memory_limit_is_enforced() {
         ..Default::default()
     };
     let ts = config.load().unwrap();
-    let dir = std::env::temp_dir().join(format!("tsgo-wasm-memlimit-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("main.ts"), "export const x: number = 1;\n").unwrap();
-    let result = ts.check(&dir, "main.ts", Some(Duration::from_secs(120)));
+    let result = ts.check(
+        &[("main.ts", "export const x: number = 1;\n")],
+        Duration::from_secs(120),
+    );
     assert!(
-        result.is_err() || result.as_ref().unwrap().exit_code != 0,
+        result.is_err(),
         "expected failure under 8MB limit, got: {result:?}"
     );
 }
