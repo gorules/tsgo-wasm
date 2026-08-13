@@ -1,0 +1,21 @@
+[package]
+name = "tsgo-wasm"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "typescript-go (tsgo) compiled to WASI p1, with an optional wasmtime runtime"
+repository = "https://github.com/gorules/tsgo-wasm"
+
+[features]
+default = ["runtime"]
+runtime = ["dep:anyhow", "dep:wasmtime", "dep:wasmtime-wasi"]
+
+[dependencies]
+zstd = "0.13"
+anyhow = { version = "1", optional = true }
+wasmtime = { version = "47", optional = true }
+wasmtime-wasi = { version = "47", optional = true }
+
+[build-dependencies]
+sha2 = "0.10"
+ureq = "2"

@@ -1,0 +1,8 @@
+/target
+/.tsgo-build
+/artifacts/tsgo.wasm.zst
+tsgo.wasm
+*.cwasm*
+.DS_Store
+.idea/
+.vscode/
