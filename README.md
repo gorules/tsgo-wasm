@@ -1,6 +1,6 @@
 # tsgo-wasm
 
-[microsoft/typescript-go](https://github.com/microsoft/typescript-go) (`tsgo`) compiled to a WASI p1 module, embedded in a Rust crate with an optional wasmtime runtime.
+[microsoft/typescript-go](https://github.com/microsoft/typescript-go) (`tsgo`) compiled to a WASI p1 module, embedded in a Rust crate with an optional wasmtime runtime. Maintained by [GoRules](https://gorules.io).
 
 ## Usage
 
@@ -102,3 +102,7 @@ The wasm binary is never committed to git or packaged into the crate — the rep
 3. Download from this repo's `v<version>` release asset, verified against the committed sha256
 
 The result lands in `OUT_DIR` and is embedded via `include_bytes!`, so the consumer API is identical in all three paths. `TSGO_REV` (from the committed `artifacts/tsgo.rev`) always records the exact upstream commit.
+
+## About GoRules
+
+tsgo-wasm is built and maintained by [GoRules](https://gorules.io). We use it to type-check TypeScript inside sandboxed environments across our platform — if you're evaluating decision automation, check out our open-source [Business Rules Engine](https://gorules.io), a high-performance rules engine with a visual decision modeler, available for Rust, NodeJS, Python, Go, Java and .NET.
