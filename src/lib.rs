@@ -6,7 +6,12 @@ pub fn module_bytes() -> std::io::Result<Vec<u8>> {
 }
 
 #[cfg(feature = "runtime")]
-pub use runtime::{Output, TypeScript, TypeScriptConfig, build_cwasm, build_cwasm_zst, precompile};
+pub use runtime::{TypeScript, TypeScriptConfig, build_cwasm, build_cwasm_zst, precompile};
+
+#[cfg(feature = "runtime")]
+mod api;
+#[cfg(feature = "runtime")]
+pub use api::{ApiSession, Diagnostic};
 
 #[cfg(feature = "runtime")]
 mod runtime {
@@ -19,7 +24,7 @@ mod runtime {
     };
     use wasmtime_wasi::p1::{self, WasiP1Ctx};
     use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
-    use wasmtime_wasi::{DirPerms, FilePerms, I32Exit, WasiCtxBuilder};
+    use wasmtime_wasi::{I32Exit, WasiCtxBuilder};
 
     #[derive(Clone, Debug)]
     pub struct TypeScriptConfig {
@@ -130,16 +135,9 @@ mod runtime {
         TypeScriptConfig::default().build_cwasm_zst(level)
     }
 
-    #[derive(Debug)]
-    pub struct Output {
-        pub exit_code: i32,
-        pub stdout: String,
-        pub stderr: String,
-    }
-
-    struct State {
-        wasi: WasiP1Ctx,
-        limits: StoreLimits,
+    pub(crate) struct State {
+        pub(crate) wasi: WasiP1Ctx,
+        pub(crate) limits: StoreLimits,
     }
 
     pub struct TypeScript {
@@ -190,83 +188,51 @@ mod runtime {
             })
         }
 
-        pub fn run(
-            &self,
-            args: &[&str],
-            mounts: &[(&Path, &str)],
-            timeout: Option<Duration>,
-        ) -> anyhow::Result<Output> {
-            let stdout = MemoryOutputPipe::new(self.config.pipe_capacity);
-            let stderr = MemoryOutputPipe::new(self.config.pipe_capacity);
-
-            let mut builder = WasiCtxBuilder::new();
-            builder.args(&[&["tsgo"], args].concat());
-            builder.stdout(stdout.clone());
-            builder.stderr(stderr.clone());
-            for (host, guest) in mounts {
-                builder.preopened_dir(host, *guest, DirPerms::all(), FilePerms::all())?;
-            }
-
-            let mut limits = StoreLimitsBuilder::new();
-            if let Some(memory) = self.config.memory_limit {
-                limits = limits.memory_size(memory);
-            }
-            let state = State {
-                wasi: builder.build_p1(),
-                limits: limits.build(),
-            };
-
-            let mut store = Store::new(&self.engine, state);
-            store.limiter(|state| &mut state.limits);
-            match timeout {
-                Some(timeout) => {
-                    let ticks = timeout
-                        .as_millis()
-                        .div_ceil(self.config.epoch_tick.as_millis())
-                        + 1;
-                    store.set_epoch_deadline(ticks as u64);
-                }
-                None => store.set_epoch_deadline(u64::MAX),
-            }
-
-            let instance = self.instance_pre.instantiate(&mut store)?;
-            let start = instance.get_typed_func::<(), ()>(&mut store, "_start")?;
-            let exit_code = match start.call(&mut store, ()) {
-                Ok(()) => 0,
-                Err(error) => match error.downcast_ref::<I32Exit>() {
-                    Some(exit) => exit.0,
-                    None => return Err(error.into()),
-                },
-            };
-            drop(store);
-
-            Ok(Output {
-                exit_code,
-                stdout: String::from_utf8_lossy(&stdout.contents()).into_owned(),
-                stderr: String::from_utf8_lossy(&stderr.contents()).into_owned(),
-            })
-        }
-
         pub fn check(
             &self,
-            dir: impl AsRef<Path>,
-            entry: &str,
-            timeout: Option<Duration>,
-        ) -> anyhow::Result<Output> {
-            let guest_entry = format!("/project/{entry}");
-            self.run(
-                &["--noEmit", &guest_entry],
-                &[(dir.as_ref(), "/project")],
-                timeout,
-            )
+            files: &[(&str, &str)],
+            timeout: Duration,
+        ) -> anyhow::Result<Vec<crate::api::Diagnostic>> {
+            self.api_session(files, timeout)?.diagnostics()
         }
 
         pub fn version(&self) -> anyhow::Result<String> {
-            Ok(self
-                .run(&["--version"], &[], None)?
-                .stdout
+            let stdout = MemoryOutputPipe::new(self.config.pipe_capacity);
+            let mut builder = WasiCtxBuilder::new();
+            builder.args(&["tsgo", "--version"]);
+            builder.stdout(stdout.clone());
+            let state = State {
+                wasi: builder.build_p1(),
+                limits: StoreLimitsBuilder::new().build(),
+            };
+            let mut store = Store::new(&self.engine, state);
+            store.limiter(|state| &mut state.limits);
+            store.set_epoch_deadline(u64::MAX / 2);
+            let instance = self.instance_pre.instantiate(&mut store)?;
+            let start = instance.get_typed_func::<(), ()>(&mut store, "_start")?;
+            if let Err(error) = start.call(&mut store, ()) {
+                if error.downcast_ref::<I32Exit>().is_none() {
+                    return Err(error.into());
+                }
+            }
+            drop(store);
+            Ok(String::from_utf8_lossy(&stdout.contents())
                 .trim()
                 .to_string())
+        }
+
+        pub fn api_session(
+            &self,
+            files: &[(&str, &str)],
+            timeout: Duration,
+        ) -> anyhow::Result<crate::api::ApiSession> {
+            crate::api::ApiSession::start(
+                self.engine.clone(),
+                self.instance_pre.clone(),
+                self.config.clone(),
+                files,
+                timeout,
+            )
         }
     }
 

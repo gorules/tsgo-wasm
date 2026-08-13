@@ -1578,7 +1578,12 @@ name = "tsgo-wasm"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "bytes",
+ "serde",
+ "serde_json",
  "sha2",
+ "tokio",
  "ureq",
  "wasmtime",
  "wasmtime-wasi",
