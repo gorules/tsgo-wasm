@@ -1,0 +1,47 @@
+name: Update tsgo
+
+on:
+  workflow_dispatch:
+    inputs:
+      tsgo_ref:
+        description: microsoft/typescript-go ref to build
+        default: main
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build
+        run: make tsgo TSGO_REV=${{ inputs.tsgo_ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Test
+        run: make test
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+        run: make upload
+
+      - name: Push to main
+        run: |
+          git config user.name "Bot GoRules"
+          git config user.email "bot@gorules.io"
+          git add artifacts
+          git diff --cached --quiet && exit 0
+          REV=$(cat artifacts/tsgo.rev)
+          git commit -m "feat: update tsgo to microsoft/typescript-go@${REV:0:10}"
+          git push origin HEAD:main

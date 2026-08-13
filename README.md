@@ -89,13 +89,9 @@ Measured on an M-series Mac, 5.1k-line type-check: native tsgo 0.13s (multi-thre
 
 Every published crate version is immutably fixed to one typescript-go commit: `tsgo.rev` and `tsgo.sha256` are frozen into the crates.io package at publish time, and tsgo updates always land as a new minor (`0.1.x` → `0.2.0`), which cargo treats as an incompatible range — consumers never receive a new tsgo without an explicit version bump.
 
-Updating is therefore a release act (requires Go, zstd, and an authenticated `gh`):
+Updating is therefore a release act: run the **Update tsgo** workflow (workflow_dispatch) with the desired microsoft/typescript-go ref. It builds the module, runs the tests against it, uploads the `tsgo-<rev>` release asset, and pushes the updated `artifacts/tsgo.rev` + `tsgo.sha256` to main as a `feat:` commit — asset first, so validate and consumers can always download it. That push feeds release-please, which maintains the Release PR (version bump + CHANGELOG); merging that tags `v<version>` and publishes the new crate version to crates.io.
 
-1. Edit `artifacts/tsgo.rev` to the desired microsoft/typescript-go commit sha — this file is the only pin.
-2. Run `make update` — builds the module at that sha, tests, uploads the release asset, refreshes `tsgo.sha256`.
-3. Open a PR with the changed `artifacts/` as `feat: update tsgo to microsoft/typescript-go@<sha>`.
-
-Merging feeds release-please, which maintains the Release PR (version bump + CHANGELOG); merging that tags `v<version>` and publishes the new crate version to crates.io.
+The same flow works locally via `make update TSGO_REV=<ref>` (requires Go, zstd, and an authenticated `gh`) followed by committing the changed `artifacts/`.
 
 ## Module distribution
 
