@@ -19,3 +19,6 @@ wasmtime-wasi = { version = "47", optional = true }
 [build-dependencies]
 sha2 = "0.10"
 ureq = "2"
+
+[dev-dependencies]
+zstd = "0.13"

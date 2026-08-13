@@ -27,6 +27,27 @@ println!("exit={} {}", output.exit_code, output.stdout);
 - Timeouts use epoch interruption (100ms granularity), safe under concurrent runs.
 - Each run gets a fresh `Store`/instance: no state leaks between runs. Expect a ~0.9s floor per invocation (Go runtime boot + default lib loading inside the guest) — batch work into few invocations where possible.
 
+## Custom engine config
+
+Embedders with non-default requirements use `TypeScriptConfig` — every path (load, cache, precompile, cwasm) flows through the same config value, so AOT artifacts and the loading engine match by construction:
+
+```rust
+use tsgo_wasm::TypeScriptConfig;
+
+let config = TypeScriptConfig {
+    signals_based_traps: false,
+    memory_limit: Some(2 * 1024 * 1024 * 1024),
+    epoch_tick: Duration::from_millis(10),
+    ..Default::default()
+};
+let ts = config.load()?;
+```
+
+- `signals_based_traps: false` is required when wasmtime shares a process with a runtime that owns the signal handlers (V8 in a Node addon, JVM). It switches to explicit bounds checks: ~4x slower compilation, larger code, slower execution — leave it `true` (default) in pure Rust processes, where guest faults already surface as clean `Err` traps.
+- `memory_limit` caps each run's linear memory via a store limiter.
+- `TypeScript::new()` / `with_cache` / `from_cwasm` and the `build_cwasm*` helpers are shorthands for the same methods on `TypeScriptConfig::default()`.
+- A cwasm only loads into an engine whose compile-relevant config matches — precompile and load with the same `TypeScriptConfig` value.
+
 ## Build-time AOT
 
 For consumers where the ~13 CPU-seconds boot compile is unacceptable (Lambda, tightly CPU-limited pods), precompile in your own build script — version, target, and engine config stay matched by construction, including cross-compilation:
@@ -47,7 +68,9 @@ static TSGO_CWASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tsgo.cwasm"
 let ts = unsafe { TypeScript::from_cwasm(TSGO_CWASM)? };
 ```
 
-Costs: +92 MB in the binary and ~13 CPU-seconds per fresh build. In dev profiles build dependencies default to opt-level 0, which makes the precompile step several times slower — add `[profile.dev.build-override] opt-level = 2` if you AOT in dev builds. `precompile(target)` returns the raw cwasm bytes if you'd rather ship it as a file. Embeddings with their own wasmtime engine (different version or config) must not use these helpers; feed `module_bytes()` to their own `Engine::precompile_module` instead.
+`build_cwasm_zst(level)` writes `tsgo.cwasm.zst` instead (~17 MB at level 19 vs 92 MB raw) — `from_cwasm` detects zstd transparently, trading ~92 MB of binary size for a short decompression at startup.
+
+Costs: +92 MB in the binary (or the compressed size with the zst variant) and ~13 CPU-seconds per fresh build. In dev profiles build dependencies default to opt-level 0, which makes the precompile step several times slower — add `[profile.dev.build-override] opt-level = 2` if you AOT in dev builds. `precompile(target)` returns the raw cwasm bytes if you'd rather ship it as a file. Embeddings with their own wasmtime engine (different version or config) must not use these helpers; feed `module_bytes()` to their own `Engine::precompile_module` instead.
 
 ## Bytes only
 
