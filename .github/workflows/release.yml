@@ -17,21 +17,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/cache/restore@v4
-        id: tsgo
         with:
           path: artifacts/tsgo.wasm.zst
           key: tsgo-wasm-${{ hashFiles('artifacts/tsgo.rev') }}
 
       - uses: actions/setup-go@v5
-        if: steps.tsgo.outputs.cache-hit != 'true'
         with:
           go-version: stable
 
-      - name: Rebuild tsgo module
-        if: steps.tsgo.outputs.cache-hit != 'true'
+      - name: Ensure tsgo module
         run: |
-          make tsgo
-          git diff --exit-code artifacts/tsgo.sha256
+          SHA=$(cat artifacts/tsgo.sha256)
+          if [ ! -f artifacts/tsgo.wasm.zst ] || [ "$(sha256sum artifacts/tsgo.wasm.zst | cut -d' ' -f1)" != "$SHA" ]; then
+            make tsgo
+            git diff --exit-code artifacts/tsgo.sha256
+          fi
 
       - name: Attach module to release
         env:
