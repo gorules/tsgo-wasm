@@ -31,8 +31,8 @@ bytes = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 tokio = { version = "1", default-features = false, optional = true }
-wasmtime = { version = "47", optional = true }
-wasmtime-wasi = { version = "47", optional = true }
+wasmtime = { version = "48.0.7", optional = true }
+wasmtime-wasi = { version = "48.0.7", optional = true }
 
 [build-dependencies]
 sha2 = "0.10"
