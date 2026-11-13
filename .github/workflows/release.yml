@@ -26,9 +26,17 @@ jobs:
           go-version: stable
 
       - name: Ensure tsgo module
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           SHA=$(cat artifacts/tsgo.sha256)
-          if [ ! -f artifacts/tsgo.wasm.zst ] || [ "$(sha256sum artifacts/tsgo.wasm.zst | cut -d' ' -f1)" != "$SHA" ]; then
+          matches() { [ -f artifacts/tsgo.wasm.zst ] && [ "$(sha256sum artifacts/tsgo.wasm.zst | cut -d' ' -f1)" = "$SHA" ]; }
+          if ! matches; then
+            for tag in $(gh release list --exclude-drafts --json tagName --jq '.[].tagName'); do
+              gh release download "$tag" --pattern tsgo.wasm.zst --dir artifacts --clobber 2>/dev/null && matches && break
+            done
+          fi
+          if ! matches; then
             make tsgo
             git diff --exit-code artifacts/tsgo.sha256
           fi
