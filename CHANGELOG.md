@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gorules/tsgo-wasm/compare/v0.3.0...v0.3.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **GRL-819:** bump wasmtime to 48.0.7 ([#6](https://github.com/gorules/tsgo-wasm/issues/6)) ([075c85e](https://github.com/gorules/tsgo-wasm/commit/075c85eac2fe2b4ac28270dce39232c3b1b9dc5f))
+
 ## [0.3.0](https://github.com/gorules/tsgo-wasm/compare/v0.2.0...v0.3.0) (2026-08-13)
 
 
